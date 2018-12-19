@@ -1,4 +1,4 @@
-#!/bin/env python
+#!/usr/bin/env python
 
 import random
 import math
@@ -11,11 +11,18 @@ def readWords():
 
 words = readWords()
 
+def randWord(i):
+    choice = rng.randrange(len(words))
+    ans = words[choice].capitalize()
+    if i > 0:
+        ans = str(i) + ans
+    return ans
+
 def passphrase(desiredBits = 79):
     numWords = len(words)
     count = int(math.ceil(desiredBits/math.log(numWords,2)))
-    passWords = [words[rng.randrange(numWords)] for i in range(count)]
-    return " ".join(passWords)
+    passWords = [randWord(i) for i in range(count)]
+    return "".join(passWords)
 
 for i in range(20):
     print passphrase()
