@@ -1,39 +1,73 @@
 class PRNG {
-    constructor(counter = null) {
-	    this.counter = new Uint8Array(32)
-	    crypto.getRandomValues(this.counter)
-    }
-
-    // largest integer exactly representable as an IEEE double is 2^53
-    async nextUint53() {
-	let digest = new Uint8Array(
-	    await crypto.subtle.digest('SHA-256', this.counter))
-	let carry = 1;
-	for (let i=31; i>=0; --i) {
-	    carry = (this.counter[i] = (this.counter[i]+carry) % 256) == 0;
+    constructor(seed = null) {
+		this.seed = seed;
+		this.counter = 0;
 	}
-	// 6*8+5 = 53, so 6 whole bytes, plus 5 bits
-	return (0
-		+ (digest[0] * Math.pow(2,0*8))
-		+ (digest[1] * Math.pow(2,1*8))
-		+ (digest[2] * Math.pow(2,2*8))
-		+ (digest[3] * Math.pow(2,3*8))
-		+ (digest[4] * Math.pow(2,4*8))
-		+ (digest[5] * Math.pow(2,5*8))
-		+((digest[6]&((1<<5)-1)) * Math.pow(2,6*8)))
-    }
 
-    async nextRange(a,b) {
-	let N = Math.pow(2,53)
-	let n = Math.max(1,b-a+1)
-	let M = N-(N % n)
-	for (;;) {
-  	    let x = await this.nextUint53()
-	    if (x < M) {
-		return a + x % n
-	    }
+	async digest(counter) {
+		if (this.seed === null) {
+			let seed = new Uint8Array(32);
+			crypto.getRandomValues(seed);
+			this.seed = seed;
+		}
+		let msg = new Uint8Array(32);
+		for (let i=0; i<32; ++i) {
+			msg[i] = this.seed[i] ^ (0xFF & (counter >>> (i*8)))
+		}
+		let digest = await crypto.subtle.digest('SHA-256', msg);
+		return new Uint8Array(digest);
 	}
-    }
+
+    uint53(digest) {
+		// 6*8+5 = 53, so 6 whole bytes, plus 5 bits
+		return (digest[0] * Math.pow(2,0*8))
+			+ (digest[1] * Math.pow(2,1*8))
+			+ (digest[2] * Math.pow(2,2*8))
+			+ (digest[3] * Math.pow(2,3*8))
+			+ (digest[4] * Math.pow(2,4*8))
+			+ (digest[5] * Math.pow(2,5*8))
+			+ ((digest[6]&((1<<5)-1)) * Math.pow(2,6*8));
+	}
+
+	uniform(digest) {
+		return this.uint53(digest) / Math.pow(2,53)
+	}
+
+	async nextDigest() {
+		let counter = ++this.counter;
+		return await this.digest(counter);
+	}
+
+	async nextUint53() {
+		let digest = await this.nextDigest();
+		return this.uint53(digest);
+	}
+	
+	async nextUniform() {
+		let digest = await this.nextDigest();
+		return this.uniform(digest);
+	}
+
+    async nextIntRange(a,b) {
+		let N = Math.pow(2,53)
+		let n = Math.max(1,b-a+1)
+		if (n > Math.pow(2,52)) {
+			return a + Math.floor(n*await this.nextDouble());
+		}
+		let M = N-(N % n) // setup perfect binning
+
+		for (;;) {
+			let x = await this.nextUint53()
+			if (x < M) { // Prob > 1-(n/N)
+				return a + x % n
+			}
+		}
+	}
+	
+	async nextUniformRange(a,b) {
+		let uniform = await this.nextUniform();
+		return a + Math.max(0,b-a)*Math.floor(n*uniform);
+	}
 }
 
 class Words {
@@ -60,7 +94,7 @@ class Words {
 	    "cause","cell","center","central","century","certain","certainly","chair",
 	    "challenge","chance","change","character","charge","check","child","choice",
 	    "choose","church","citizen","city","civil","claim","class","clear",
-    "clearly","close","coach","cold","collection","college","color","come",
+    	"clearly","close","coach","cold","collection","college","color","come",
 	    "commercial","common","community","company","compare","computer","concern","condition",
 	    "conference","congress","consider","consumer","contain","continue","control","cost",
 	    "could","country","couple","course","court","cover","create","crime",
@@ -168,29 +202,34 @@ class Words {
     }
 
     async word() {
-	let choice = await this.prng.nextRange(0,this.words.length-1)
-	let word = this.words[choice]
-	return word
+		let choice = await this.prng.nextIntRange(0,this.words.length-1)
+		let word = this.words[choice]
+		return word
     }
 
     capitalize(string) {
-	return string ? string.charAt(0).toUpperCase() + string.slice(1) : string;
+		return string ? string.charAt(0).toUpperCase() + string.slice(1) : string;
     }
 
     async Word() {
-	return this.capitalize(await this.word())
-    }
-    
-    async passphrase(desiredBits = 79) {
-	let count = Math.ceil(desiredBits/Math.log(this.words.length),2)
-	let passphrase=""
-	for (let i=0; i<count; ++i) {
-	    if (i > 0) {
-		passphrase = passphrase + i
-	    }
-	    let Word = await this.Word()
-	    passphrase = passphrase + Word
+		return this.capitalize(await this.word())
 	}
-	return passphrase
+	
+	wordCount(desiredBits = 79) {
+		let count = Math.ceil(desiredBits/Math.log(this.words.length),2)
+		return count
+	}
+    
+    async passphrase(count = this.wordCount()) {
+		let passphrase=""
+
+		for (let i=0; i<count; ++i) {
+		    if (i > 0) {
+				passphrase = passphrase + i
+	   	 	}
+	    	let Word = await this.Word()
+	    	passphrase = passphrase + Word
+		}
+		return passphrase
     }
 }
