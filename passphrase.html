@@ -1,0 +1,26 @@
+<script src="passphrase.js"></script>
+<script>
+  async function passphrase() {
+      let words = new Words()
+      return words.passphrase()
+  }
+  
+  function OnLoad() {
+      console.log("OnLoad()")
+      for (let i=0; i<4; ++i) {
+	  passphrase().then((phrase) => {
+	      let id = "passphrase"+i;
+	      console.log("id: " + id + " phrase: " + phrase)
+	      document.getElementById("passphrase"+i).innerText = phrase
+	  })
+      }
+  }
+</script>
+
+<body onload="OnLoad()">
+  <div id="passphrase0"></div>
+  <div id="passphrase1"></div>
+  <div id="passphrase2"></div>
+  <div id="passphrase3"></div>
+</html>
+
