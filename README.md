@@ -1,8 +1,8 @@
-# passwphrase
+# passphrase
 
 This is a simple (auditable) python 2/3 script to generate pass phrases suitable for a master password
 
-1. It uses the strong /dev/urrandom source for randomness
+1. It uses the strong /dev/urandom source for randomness
 2. They have the form Word1Word2Word3Word4Word5Word6Word7Word
 3. The words are selected from the 1000 most common enlish words 
 4. This produces 8*log(1000)/log(2)= 79.7 bits of entropy
